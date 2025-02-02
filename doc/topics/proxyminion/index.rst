@@ -581,7 +581,6 @@ and status; "package" installation, and a ping.
 
 
     def uptodate(name):
-
         """
         Call the REST endpoint to see if the packages on the "server" are up to date.
         """
@@ -592,7 +591,6 @@ and status; "package" installation, and a ping.
 
 
     def package_remove(name):
-
         """
         Remove a "package" on the REST server
         """
@@ -864,7 +862,8 @@ This proxymodule enables "package" installation.
         List "packages" by executing a command via ssh
         This function is called in response to the salt command
 
-        ..code-block::bash
+        .. code-block:: bash
+
             salt target_minion pkg.list_pkgs
 
         """

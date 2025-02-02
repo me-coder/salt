@@ -3,11 +3,8 @@ Support for the softwareupdate command on MacOS.
 """
 
 import os
-
-# Import python libs
 import re
 
-# import salt libs
 import salt.utils.data
 import salt.utils.files
 import salt.utils.mac_utils
@@ -179,7 +176,7 @@ def list_ignored():
     #     "Safari6.1.2MountainLion-6.1.2",
     # or:
     #     Safari6.1.2MountainLion-6.1.2
-    rexp = re.compile('(?m)^    ["]?' r'([^,|\s].*[^"|\n|,])[,|"]?')
+    rexp = re.compile(r'(?m)^    ["]?([^,|\s].*[^"|\n|,])[,|"]?')
 
     return rexp.findall(out)
 
@@ -314,7 +311,7 @@ def update(name):
        salt '*' softwareupdate.update <update-name>
     """
     if not update_available(name):
-        raise SaltInvocationError("Update not available: {}".format(name))
+        raise SaltInvocationError(f"Update not available: {name}")
 
     cmd = ["softwareupdate", "--install", name]
     salt.utils.mac_utils.execute_return_success(cmd)
@@ -393,7 +390,7 @@ def download(name):
        salt '*' softwareupdate.download <update name>
     """
     if not update_available(name):
-        raise SaltInvocationError("Update not available: {}".format(name))
+        raise SaltInvocationError(f"Update not available: {name}")
 
     if name in list_downloads():
         return True

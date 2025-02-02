@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Majority of code shamelessly stolen from
 # http://www.v13.gr/blog/?p=303
 """
@@ -15,15 +14,10 @@ TODO: Add a 'ca_dir' option to configure a directory of CA files, a la Apache.
 
 :depends:    - pyOpenSSL module
 """
-# Import python libs
-from __future__ import absolute_import, print_function, unicode_literals
-
 import logging
 
-# Import salt libs
 import salt.utils.files
 
-# Import third party libs
 # pylint: disable=import-error
 try:
     try:
@@ -35,7 +29,7 @@ try:
         try:
             from Cryptodome.Util import asn1
         except ImportError:
-            from Crypto.Util import asn1
+            from Crypto.Util import asn1  # nosec
         import OpenSSL
     HAS_DEPS = True
 except ImportError:
@@ -90,11 +84,10 @@ def auth(username, password, **kwargs):
         if cert.verify(cacert.get_pubkey()):
             log.info("Successfully authenticated certificate: %s", pem)
             return True
-        else:
-            log.info("Failed to authenticate certificate: %s", pem)
-            return False
+        log.info("Failed to authenticate certificate: %s", pem)
+        return False
 
-    c = OpenSSL.crypto
+    c = OpenSSL.crypto  # pylint: disable=used-before-assignment
     cert = c.load_certificate(c.FILETYPE_PEM, pem)
 
     with salt.utils.files.fopen(cacert_file) as f:
@@ -107,7 +100,7 @@ def auth(username, password, **kwargs):
     cert_asn1 = c.dump_certificate(c.FILETYPE_ASN1, cert)
 
     # Decode the certificate
-    der = asn1.DerSequence()
+    der = asn1.DerSequence()  # pylint: disable=used-before-assignment
     der.decode(cert_asn1)
 
     # The certificate has three parts:

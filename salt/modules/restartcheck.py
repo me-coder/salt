@@ -9,6 +9,7 @@ https://packages.debian.org/debian-goodies) and psdel by Sam Morris.
 
 :codeauthor: Jiri Kotlin <jiri.kotlin@ultimum.io>
 """
+
 import os
 import re
 import subprocess
@@ -227,8 +228,8 @@ def _format_output(
 
         if restartable:
             ret += (
-                "Of these, {} seem to contain systemd service definitions or init scripts "
-                "which can be used to restart them:\n".format(len(restartable))
+                "Of these, {} seem to contain systemd service definitions or init"
+                " scripts which can be used to restart them:\n".format(len(restartable))
             )
             for package in restartable:
                 ret += package + ":\n"
@@ -329,7 +330,7 @@ def _kernel_versions_nilrt():
         Get kernel version from a binary image or None if detection fails
         """
         kvregex = r"[0-9]+\.[0-9]+\.[0-9]+-rt\S+"
-        kernel_strings = __salt__["cmd.run"]("strings {}".format(kbin))
+        kernel_strings = __salt__["cmd.run"](f"strings {kbin}")
         re_result = re.search(kvregex, kernel_strings)
         return None if re_result is None else re_result.group(0)
 
@@ -346,7 +347,7 @@ def _kernel_versions_nilrt():
                     itb_path, compressed_kernel
                 )
             )
-            __salt__["cmd.run"]("gunzip -f {}".format(compressed_kernel))
+            __salt__["cmd.run"](f"gunzip -f {compressed_kernel}")
             kver = _get_kver_from_bin(uncompressed_kernel)
         else:
             # the kernel bzImage is copied to rootfs without package management or
@@ -387,8 +388,8 @@ def _file_changed_nilrt(full_filepath):
     """
     rs_state_dir = "/var/lib/salt/restartcheck_state"
     base_filename = os.path.basename(full_filepath)
-    timestamp_file = os.path.join(rs_state_dir, "{}.timestamp".format(base_filename))
-    md5sum_file = os.path.join(rs_state_dir, "{}.md5sum".format(base_filename))
+    timestamp_file = os.path.join(rs_state_dir, f"{base_filename}.timestamp")
+    md5sum_file = os.path.join(rs_state_dir, f"{base_filename}.md5sum")
 
     if not os.path.exists(timestamp_file) or not os.path.exists(md5sum_file):
         return True
@@ -401,9 +402,7 @@ def _file_changed_nilrt(full_filepath):
         return True
 
     return bool(
-        __salt__["cmd.retcode"](
-            "md5sum -cs {}".format(md5sum_file), output_loglevel="quiet"
-        )
+        __salt__["cmd.retcode"](f"md5sum -cs {md5sum_file}", output_loglevel="quiet")
     )
 
 
@@ -418,7 +417,7 @@ def _kernel_modules_changed_nilrt(kernelversion):
              - True if modules.dep was modified/touched, False otherwise.
     """
     if kernelversion is not None:
-        return _file_changed_nilrt("/lib/modules/{}/modules.dep".format(kernelversion))
+        return _file_changed_nilrt(f"/lib/modules/{kernelversion}/modules.dep")
     return False
 
 
@@ -446,7 +445,7 @@ def _sysapi_changed_nilrt():
     )
 
     if os.path.exists(nisysapi_conf_d_path):
-        rs_count_file = "{}/sysapi.conf.d.count".format(restartcheck_state_dir)
+        rs_count_file = f"{restartcheck_state_dir}/sysapi.conf.d.count"
         if not os.path.exists(rs_count_file):
             return True
 
@@ -457,7 +456,7 @@ def _sysapi_changed_nilrt():
                 return True
 
         for fexpert in os.listdir(nisysapi_conf_d_path):
-            if _file_changed_nilrt("{}/{}".format(nisysapi_conf_d_path, fexpert)):
+            if _file_changed_nilrt(f"{nisysapi_conf_d_path}/{fexpert}"):
                 return True
 
     return False
@@ -483,6 +482,7 @@ def restartcheck(ignorelist=None, blacklist=None, excludepid=None, **kwargs):
     .. versionadded:: 2015.8.3
 
     CLI Example:
+
     .. code-block:: bash
 
         salt '*' restartcheck.restartcheck
@@ -493,23 +493,26 @@ def restartcheck(ignorelist=None, blacklist=None, excludepid=None, **kwargs):
     verbose = kwargs.pop("verbose", True)
     timeout = kwargs.pop("timeout", 5)
     if __grains__.get("os_family") == "Debian":
-        cmd_pkg_query = "dpkg-query --listfiles "
+        cmd_pkg_query = ["dpkg-query", "--listfiles"]
         systemd_folder = "/lib/systemd/system/"
         systemd = "/bin/systemd"
         kernel_versions = _kernel_versions_debian()
     elif __grains__.get("os_family") == "RedHat":
-        cmd_pkg_query = "repoquery -l "
+        cmd_pkg_query = ["repoquery", "-l"]
         systemd_folder = "/usr/lib/systemd/system/"
         systemd = "/usr/bin/systemctl"
         kernel_versions = _kernel_versions_redhat()
     elif __grains__.get("os_family") == NILRT_FAMILY_NAME:
-        cmd_pkg_query = "opkg files "
+        cmd_pkg_query = ["opkg", "files"]
         systemd = ""
         kernel_versions = _kernel_versions_nilrt()
     else:
         return {
             "result": False,
-            "comment": "Only available on Debian, Red Hat and NI Linux Real-Time based systems.",
+            "comment": (
+                "Only available on Debian, Red Hat and NI Linux Real-Time based"
+                " systems."
+            ),
         }
 
     # Check kernel versions
@@ -564,8 +567,9 @@ def restartcheck(ignorelist=None, blacklist=None, excludepid=None, **kwargs):
         if deleted_file is False:
             return {
                 "result": False,
-                "comment": "Could not get list of processes."
-                " (Do you have root access?)",
+                "comment": (
+                    "Could not get list of processes. (Do you have root access?)"
+                ),
             }
 
         _check_timeout(start_time, timeout)
@@ -573,7 +577,7 @@ def restartcheck(ignorelist=None, blacklist=None, excludepid=None, **kwargs):
         if path in blacklist or pid in excludepid:
             continue
         try:
-            readlink = os.readlink("/proc/{}/exe".format(pid))
+            readlink = os.readlink(f"/proc/{pid}/exe")
         except OSError:
             excludepid.append(pid)
             continue
@@ -611,8 +615,9 @@ def restartcheck(ignorelist=None, blacklist=None, excludepid=None, **kwargs):
 
     for package in packages:
         _check_timeout(start_time, timeout)
-        cmd = cmd_pkg_query + package
-        paths = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+        cmd = cmd_pkg_query[:]
+        cmd.append(package)
+        paths = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
         while True:
             _check_timeout(start_time, timeout)

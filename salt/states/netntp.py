@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Network NTP
 ===========
 
-.. versionadded: 2016.11.0
+.. versionadded:: 2016.11.0
 
 Manage the configuration of NTP peers and servers on the network devices through the NAPALM proxy.
 
@@ -26,16 +25,9 @@ Dependencies
 .. _dnspython: http://www.dnspython.org/
 """
 
-# Import Python libs
-from __future__ import absolute_import, print_function, unicode_literals
-
 import logging
 
-# import NAPALM utils
 import salt.utils.napalm
-
-# Import 3rd-party libs
-from salt.ext import six
 
 try:
     from netaddr import IPAddress
@@ -46,7 +38,7 @@ except ImportError:
     HAS_NETADDR = False
 
 try:
-    import dns.resolver
+    import dns.resolver  # pylint: disable=no-name-in-module
 
     HAS_DNSRESOLVER = True
 except ImportError:
@@ -88,28 +80,25 @@ def _default_ret(name):
 
 
 def _retrieve_ntp_peers():
-
     """Retrieves configured NTP peers"""
 
     return __salt__["ntp.peers"]()
 
 
 def _retrieve_ntp_servers():
-
     """Retrieves configured NTP servers"""
 
     return __salt__["ntp.servers"]()
 
 
 def _check(peers):
-
     """Checks whether the input is a valid list of peers and transforms domain names into IP Addresses"""
 
     if not isinstance(peers, list):
         return False
 
     for peer in peers:
-        if not isinstance(peer, six.string_types):
+        if not isinstance(peer, str):
             return False
 
     if (
@@ -121,7 +110,7 @@ def _check(peers):
     ip_only_peers = []
     for peer in peers:
         try:
-            ip_only_peers.append(six.text_type(IPAddress(peer)))  # append the str value
+            ip_only_peers.append(str(IPAddress(peer)))  # append the str value
         except AddrFormatError:
             # if not a valid IP Address
             # will try to see if it is a nameserver and resolve it
@@ -136,7 +125,7 @@ def _check(peers):
                 # no a valid DNS entry either
                 return False
             for dns_ip in dns_reply:
-                ip_only_peers.append(six.text_type(dns_ip))
+                ip_only_peers.append(str(dns_ip))
 
     peers = ip_only_peers
 
@@ -149,28 +138,24 @@ def _clean(lst):
 
 
 def _set_ntp_peers(peers):
-
     """Calls ntp.set_peers."""
 
     return __salt__["ntp.set_peers"](*peers, commit=False)
 
 
 def _set_ntp_servers(servers):
-
     """Calls ntp.set_servers."""
 
     return __salt__["ntp.set_servers"](*servers, commit=False)
 
 
 def _delete_ntp_peers(peers):
-
     """Calls ntp.delete_peers."""
 
     return __salt__["ntp.delete_peers"](*peers, commit=False)
 
 
 def _delete_ntp_servers(servers):
-
     """Calls ntp.delete_servers."""
 
     return __salt__["ntp.delete_servers"](*servers, commit=False)
@@ -193,7 +178,7 @@ def _check_diff_and_configure(fun_name, peers_servers, name="peers"):
     if name not in _options:
         return _ret
 
-    _retrieve_fun = "_retrieve_ntp_{what}".format(what=name)
+    _retrieve_fun = f"_retrieve_ntp_{name}"
     ntp_list_output = _exec_fun(
         _retrieve_fun
     )  # contains only IP Addresses as dictionary keys
@@ -210,7 +195,7 @@ def _check_diff_and_configure(fun_name, peers_servers, name="peers"):
     if configured_ntp_list == desired_ntp_list:
         _ret.update(
             {
-                "comment": "NTP {what} already configured as needed.".format(what=name),
+                "comment": f"NTP {name} already configured as needed.",
                 "result": True,
             }
         )
@@ -246,7 +231,7 @@ def _check_diff_and_configure(fun_name, peers_servers, name="peers"):
     comment = ""
 
     if list_to_set:
-        _set_fun = "_set_ntp_{what}".format(what=name)
+        _set_fun = f"_set_ntp_{name}"
         _set = _exec_fun(_set_fun, list_to_set)
         if _set.get("result"):
             expected_config_change = True
@@ -257,7 +242,7 @@ def _check_diff_and_configure(fun_name, peers_servers, name="peers"):
             )
 
     if list_to_delete:
-        _delete_fun = "_delete_ntp_{what}".format(what=name)
+        _delete_fun = f"_delete_ntp_{name}"
         _removed = _exec_fun(_delete_fun, list_to_delete)
         if _removed.get("result"):
             expected_config_change = True
@@ -284,7 +269,6 @@ def _check_diff_and_configure(fun_name, peers_servers, name="peers"):
 
 
 def managed(name, peers=None, servers=None):
-
     """
     Manages the configuration of NTP peers and servers on the device, as specified in the state SLS file.
     NTP entities not specified in these lists will be removed whilst entities not configured on the device will be set.
@@ -342,15 +326,15 @@ def managed(name, peers=None, servers=None):
         return ret  # just exit
 
     if isinstance(peers, list) and not _check(peers):  # check and clean peers
-        ret[
-            "comment"
-        ] = "NTP peers must be a list of valid IP Addresses or Domain Names"
+        ret["comment"] = (
+            "NTP peers must be a list of valid IP Addresses or Domain Names"
+        )
         return ret
 
     if isinstance(servers, list) and not _check(servers):  # check and clean servers
-        ret[
-            "comment"
-        ] = "NTP servers must be a list of valid IP Addresses or Domain Names"
+        ret["comment"] = (
+            "NTP servers must be a list of valid IP Addresses or Domain Names"
+        )
         return ret
 
     # ----- Retrieve existing NTP peers and determine peers to be added/removed --------------------------------------->
@@ -391,7 +375,9 @@ def managed(name, peers=None, servers=None):
         ret.update(
             {
                 "result": None,
-                "comment": "This is in testing mode, the device configuration was not changed!",
+                "comment": (
+                    "This is in testing mode, the device configuration was not changed!"
+                ),
             }
         )
         return ret

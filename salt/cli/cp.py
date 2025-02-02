@@ -36,11 +36,6 @@ class SaltCPCli(salt.utils.parsers.SaltCPOptionParser):
         Execute salt-cp
         """
         self.parse_args()
-
-        # Setup file logging!
-        self.setup_logfile_logger()
-        salt.utils.verify.verify_log(self.config)
-
         cp_ = SaltCP(self.config)
         cp_.run()
 
@@ -73,7 +68,7 @@ class SaltCP:
         except OSError as exc:
             if exc.errno == errno.ENOENT:
                 # Path does not exist
-                sys.stderr.write("{} does not exist\n".format(path))
+                sys.stderr.write(f"{path} does not exist\n")
                 sys.exit(42)
             elif exc.errno in (errno.EINVAL, errno.ENOTDIR):
                 # Path is a file (EINVAL on Windows, ENOTDIR otherwise)
@@ -102,7 +97,7 @@ class SaltCP:
         Take a path and return the contents of the file as a string
         """
         if not os.path.isfile(fn_):
-            err = "The referenced file, {} is not available.".format(fn_)
+            err = f"The referenced file, {fn_} is not available."
             sys.stderr.write(err + "\n")
             sys.exit(42)
         with salt.utils.files.fopen(fn_, "r") as fp_:
@@ -120,9 +115,9 @@ class SaltCP:
                 files.update(self._file_dict(fn_))
             elif os.path.isdir(fn_):
                 salt.utils.stringutils.print_cli(
-                    fn_ + " is a directory, only files are supported "
+                    "{} is a directory, only files are supported "
                     'in non-chunked mode. Use "--chunked" command '
-                    "line argument."
+                    "line argument.".format(fn_)
                 )
                 sys.exit(1)
         return files
@@ -143,7 +138,6 @@ class SaltCP:
         Make the salt client call in old-style all-in-one call method
         """
         arg = [self._load_files(), self.opts["dest"]]
-        local = salt.client.get_local_client(self.opts["conf_file"])
         args = [
             self.opts["tgt"],
             "cp.recv",
@@ -155,7 +149,8 @@ class SaltCP:
         if selected_target_option is not None:
             args.append(selected_target_option)
 
-        return local.cmd(*args)
+        with salt.client.get_local_client(self.opts["conf_file"]) as local:
+            return local.cmd(*args)
 
     def run_chunked(self):
         """
@@ -183,8 +178,6 @@ class SaltCP:
         )
         minions = _res["minions"]
 
-        local = salt.client.get_local_client(self.opts["conf_file"])
-
         def _get_remote_path(fn_):
             if fn_ in self.opts["src"]:
                 # This was a filename explicitly passed on the CLI
@@ -205,79 +198,75 @@ class SaltCP:
 
         ret = {}
         parent = ".." + os.sep
-        for fn_, mode in files.items():
-            remote_path = _get_remote_path(fn_)
 
-            index = 1
-            failed = {}
-            for chunk in reader(fn_, chunk_size=self.opts["salt_cp_chunk_size"]):
-                chunk = base64.b64encode(salt.utils.stringutils.to_bytes(chunk))
-                append = index > 1
+        with salt.client.get_local_client(self.opts["conf_file"]) as local:
+            for fn_, mode in files.items():
+                remote_path = _get_remote_path(fn_)
+
+                index = 1
+                failed = {}
+                for chunk in reader(fn_, chunk_size=self.opts["salt_cp_chunk_size"]):
+                    chunk = base64.b64encode(salt.utils.stringutils.to_bytes(chunk))
+                    append = index > 1
+                    log.debug(
+                        "Copying %s to %starget '%s' as %s%s",
+                        fn_,
+                        f"{selected_target_option} " if selected_target_option else "",
+                        tgt,
+                        remote_path,
+                        f" (chunk #{index})" if append else "",
+                    )
+                    args = [
+                        tgt,
+                        "cp.recv_chunked",
+                        [remote_path, chunk, append, gzip, mode],
+                        timeout,
+                    ]
+                    if selected_target_option is not None:
+                        args.append(selected_target_option)
+
+                    result = local.cmd(*args)
+
+                    if not result:
+                        # Publish failed
+                        msg = (
+                            "Publish failed.{} It may be necessary to "
+                            "decrease salt_cp_chunk_size (current value: "
+                            "{})".format(
+                                " File partially transferred." if index > 1 else "",
+                                self.opts["salt_cp_chunk_size"],
+                            )
+                        )
+                        for minion in minions:
+                            ret.setdefault(minion, {})[remote_path] = msg
+                        break
+
+                    for minion_id, minion_ret in result.items():
+                        ret.setdefault(minion_id, {})[remote_path] = minion_ret
+                        # Catch first error message for a given minion, we will
+                        # rewrite the results after we're done iterating through
+                        # the chunks.
+                        if minion_ret is not True and minion_id not in failed:
+                            failed[minion_id] = minion_ret
+
+                    index += 1
+
+                for minion_id, msg in failed.items():
+                    ret[minion_id][remote_path] = msg
+
+            for dirname in empty_dirs:
+                remote_path = _get_remote_path(dirname)
                 log.debug(
-                    "Copying %s to %starget '%s' as %s%s",
-                    fn_,
-                    "{} ".format(selected_target_option)
-                    if selected_target_option
-                    else "",
+                    "Creating empty dir %s on %starget '%s'",
+                    dirname,
+                    f"{selected_target_option} " if selected_target_option else "",
                     tgt,
-                    remote_path,
-                    " (chunk #{})".format(index) if append else "",
                 )
-                args = [
-                    tgt,
-                    "cp.recv_chunked",
-                    [remote_path, chunk, append, gzip, mode],
-                    timeout,
-                ]
+                args = [tgt, "cp.recv_chunked", [remote_path, None], timeout]
                 if selected_target_option is not None:
                     args.append(selected_target_option)
 
-                result = local.cmd(*args)
-
-                if not result:
-                    # Publish failed
-                    msg = (
-                        "Publish failed.{} It may be necessary to "
-                        "decrease salt_cp_chunk_size (current value: "
-                        "{})".format(
-                            " File partially transferred." if index > 1 else "",
-                            self.opts["salt_cp_chunk_size"],
-                        )
-                    )
-                    for minion in minions:
-                        ret.setdefault(minion, {})[remote_path] = msg
-                    break
-
-                for minion_id, minion_ret in result.items():
+                for minion_id, minion_ret in local.cmd(*args).items():
                     ret.setdefault(minion_id, {})[remote_path] = minion_ret
-                    # Catch first error message for a given minion, we will
-                    # rewrite the results after we're done iterating through
-                    # the chunks.
-                    if minion_ret is not True and minion_id not in failed:
-                        failed[minion_id] = minion_ret
 
-                index += 1
-
-            for minion_id, msg in failed.items():
-                ret[minion_id][remote_path] = msg
-
-        for dirname in empty_dirs:
-            remote_path = _get_remote_path(dirname)
-            log.debug(
-                "Creating empty dir %s on %starget '%s'",
-                dirname,
-                "{} ".format(
-                    selected_target_option
-                )  # pylint: disable=str-format-in-logging
-                if selected_target_option
-                else "",
-                tgt,
-            )
-            args = [tgt, "cp.recv_chunked", [remote_path, None], timeout]
-            if selected_target_option is not None:
-                args.append(selected_target_option)
-
-            for minion_id, minion_ret in local.cmd(*args).items():
-                ret.setdefault(minion_id, {})[remote_path] = minion_ret
-
-        return ret
+            return ret

@@ -88,7 +88,6 @@ markers for specific list items:
 
 """
 
-
 import datetime
 import logging
 
@@ -106,7 +105,7 @@ def validate(config):
     Validate the config is a dict
     """
     if not isinstance(config, list):
-        return False, ("Configuration for status beacon must be a list.")
+        return False, "Configuration for status beacon must be a list."
     return True, "Valid beacon configuration"
 
 
@@ -144,7 +143,7 @@ def beacon(config):
         for func in entry:
             ret[func] = {}
             try:
-                data = __salt__["status.{}".format(func)]()
+                data = __salt__[f"status.{func}"]()
             except salt.exceptions.CommandExecutionError as exc:
                 log.debug(
                     "Status beacon attempted to process function %s "
@@ -167,8 +166,6 @@ def beacon(config):
                         except TypeError:
                             ret[func][item] = data[int(item)]
                     except KeyError as exc:
-                        ret[
-                            func
-                        ] = "Status beacon is incorrectly configured: {}".format(exc)
+                        ret[func] = f"Status beacon is incorrectly configured: {exc}"
 
     return [{"tag": ctime, "data": ret}]

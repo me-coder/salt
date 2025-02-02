@@ -87,18 +87,18 @@ def diff(*args, **kwargs):
 
     is_first_time = True
     for k in bulk_ret:
-        print("minion pool :\n" "------------")
+        print("minion pool :\n------------")
         print(k["pool"])
-        print("pool size :\n" "----------")
+        print("pool size :\n----------")
         print("    " + str(len(k["pool"])))
         if is_first_time:
             is_first_time = False
-            print("pool result :\n" "------------")
+            print("pool result :\n------------")
             print("    " + bulk_ret[0]["result"])
             print()
             continue
 
-        outs = ('differences from "{}" results :').format(bulk_ret[0]["pool"][0])
+        outs = 'differences from "{}" results :'.format(bulk_ret[0]["pool"][0])
         print(outs)
         print("-" * (len(outs) - 1))
         from_result = bulk_ret[0]["result"].splitlines()
@@ -155,19 +155,19 @@ def _get_pool_results(*args, **kwargs):
         key: value for (key, value) in kwargs.items() if not key.startswith("_")
     }
 
-    client = salt.client.get_local_client(__opts__["conf_file"])
-    try:
-        minions = client.cmd(
-            tgt,
-            cmd,
-            args[2:],
-            timeout=__opts__["timeout"],
-            tgt_type=tgt_type,
-            kwarg=kwargs_passthru,
-        )
-    except SaltClientError as client_error:
-        print(client_error)
-        return ret
+    with salt.client.get_local_client(__opts__["conf_file"]) as client:
+        try:
+            minions = client.cmd(
+                tgt,
+                cmd,
+                args[2:],
+                timeout=__opts__["timeout"],
+                tgt_type=tgt_type,
+                kwarg=kwargs_passthru,
+            )
+        except SaltClientError as client_error:
+            print(client_error)
+            return ret
 
     # hash minion return values as a string
     for minion in sorted(minions):

@@ -2,8 +2,8 @@
 Manage basic template commands
 """
 
-
 import codecs
+import io
 import logging
 import os
 import time
@@ -13,7 +13,6 @@ import salt.utils.files
 import salt.utils.sanitizers
 import salt.utils.stringio
 import salt.utils.versions
-from salt.ext.six.moves import StringIO
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ def compile_template(
     sls="",
     input_data="",
     context=None,
-    **kwargs
+    **kwargs,
 ):
     """
     Take the path to a template and return the high data structure
@@ -87,7 +86,7 @@ def compile_template(
 
     windows_newline = "\r\n" in input_data
 
-    input_data = StringIO(input_data)
+    input_data = io.StringIO(input_data)
     for render, argline in render_pipe:
         if salt.utils.stringio.is_readable(input_data):
             input_data.seek(0)  # pylint: disable=no-member
@@ -136,7 +135,7 @@ def compile_template(
         if isinstance(contents, str):
             if "\r\n" not in contents:
                 contents = contents.replace("\n", "\r\n")
-                ret = StringIO(contents) if is_stringio else contents
+                ret = io.StringIO(contents) if is_stringio else contents
             else:
                 if is_stringio:
                     ret.seek(0)
@@ -151,7 +150,9 @@ def compile_template_str(template, renderers, default, blacklist, whitelist):
     fn_ = salt.utils.files.mkstemp()
     with salt.utils.files.fopen(fn_, "wb") as ofile:
         ofile.write(SLS_ENCODER(template)[0])
-    return compile_template(fn_, renderers, default, blacklist, whitelist)
+    ret = compile_template(fn_, renderers, default, blacklist, whitelist)
+    os.unlink(fn_)
+    return ret
 
 
 def template_shebang(template, renderers, default, blacklist, whitelist, input_data):
@@ -208,7 +209,7 @@ for comb in (
 ):
 
     fmt, tmpl = comb.split("_")
-    OLD_STYLE_RENDERERS[comb] = "{}|{}".format(tmpl, fmt)
+    OLD_STYLE_RENDERERS[comb] = f"{tmpl}|{fmt}"
 
 
 def check_render_pipe_str(pipestr, renderers, blacklist, whitelist):

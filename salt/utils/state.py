@@ -4,7 +4,6 @@ Utility functions for state functions
 .. versionadded:: 2018.3.0
 """
 
-
 import copy
 
 import salt.state
@@ -170,6 +169,7 @@ def merge_subreturn(original_return, sub_return, subkey=None):
     Code Example:
 
     .. code-block:: python
+
         def state_func(name, config, alarm=None):
             ret = {'name': name, 'comment': '', 'changes': {}}
             if alarm:
